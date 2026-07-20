@@ -1,0 +1,91 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+# Deploys: the API server, the strategy execution engine (as a background
+# worker), and a managed PostgreSQL database, all wired together.
+#
+# To use: push this repo to GitHub, then in Render click
+# New > Blueprint, point it at the repo, and Render reads this file
+# automatically. Fill in the secret env vars marked sync: false in the
+# Render dashboard after the first deploy.
+
+databases:
+  - name: kingbot-db
+    plan: free
+    databaseName: kingbot
+    user: kingbot_user
+
+services:
+  # ---------- API server ----------
+  - type: web
+    name: kingbot-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kingbot-db
+          property: connectionString
+      - key: CLIENT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: AT_USERNAME
+        sync: false
+      - key: AT_API_KEY
+        sync: false
+      - key: AT_SENDER_ID
+        value: KINGBOT
+      - key: MPESA_RECEIVING_NUMBER
+        sync: false
+      - key: PAYMENT_MODE
+        value: manual
+      - key: METAAPI_TOKEN
+        sync: false
+      - key: METAAPI_REGION
+        value: london
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+  # ---------- Strategy execution engine (background worker) ----------
+  - type: worker
+    name: kingbot-engine
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run engine
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kingbot-db
+          property: connectionString
+      - key: ENCRYPTION_KEY
+        fromService:
+          type: web
+          name: kingbot-api
+          envVarKey: ENCRYPTION_KEY
+      - key: METAAPI_TOKEN
+        sync: false
+      - key: ENGINE_INTERVAL_MS
+        value: 60000
